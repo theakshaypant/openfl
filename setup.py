@@ -94,6 +94,7 @@ setup(
         'tensorboardX',
         'protobuf>=4.22,<6.0.0',
         'grpcio>=1.56.2,<1.66.0',
+        'pycryptodome==3.21.0',
     ],
     python_requires='>=3.9, <3.12',
     project_urls={
