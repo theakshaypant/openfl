@@ -11,7 +11,7 @@ import pandas as pd
 
 from openfl.interface.aggregation_functions.core import AggregationFunction
 from openfl.utilities import LocalTensor
-from openfl.utilities.secagg import generate_agreed_key, reconstruct_secret
+from openfl.utilities.secagg import generate_agreed_key, pseudo_random_generator, reconstruct_secret
 
 
 class SecureAggregation(AggregationFunction):
@@ -47,6 +47,7 @@ class SecureAggregation(AggregationFunction):
         self._aggregate_public_keys(local_tensors, tags)
         self._aggregate_ciphertexts(local_tensors, tags)
         self._rebuild_secrets(db_iterator, local_tensors, tags)
+        self._aggregate(local_tensors, db_iterator, tags)
 
     def _aggregate_public_keys(
         self,
@@ -203,3 +204,79 @@ class SecureAggregation(AggregationFunction):
                 )
 
         return agreed_keys
+
+    def _aggregate(self, local_tensors, db_iterator, tags):
+        """
+        Aggregates local tensors using secure aggregation.
+
+        This method performs secure aggregation by reconstructing private
+        seeds and agreed keys, generating private and shared masks, and then
+        applying these masks to the local tensors.
+
+        Args:
+            local_tensors (list): A list of local tensors to be aggregated.
+            db_iterator (iterator): An iterator over the database containing
+                the secrets.
+            tags (list): A list of tags to filter the database items.
+
+        Returns:
+            numpy.ndarray: The aggregated result after applying the masks.
+
+        Notes:
+            - The `rebuilt_secrets[0]` contains private seeds in the format:
+              [
+                  [collaborator_id, private_seed],
+                  ...
+              ]
+            - The `rebuilt_secrets[1]` contains agreed keys in the format:
+              [
+                  [collaborator_1, collaborator_2, agreed_key_1_2],
+                  ...
+              ]
+            - The method checks for the presence of specific tags
+                ("public_key", "ciphertext", "deciphertext") to determine if
+                the aggregation should proceed.
+            - The shape of the local tensors is assumed to be the same for all
+                tensors.
+            - Private masks are generated using the private seeds, and shared
+                masks are generated using the agreed keys.
+            - The final result is obtained by subtracting the total mask sum
+                from the masked sum of the input tensors.
+        """
+        if not any(element in tags for element in ["public_key", "ciphertext", "deciphertext"]):
+            # Get the private seeds and agreed keys.
+            rebuilt_secrets = []
+            for item in db_iterator:
+                if "tags" in item and "deciphertext" in item["tags"]:
+                    rebuilt_secrets.append(item["nparray"])
+
+            # Get the shape of the local tensors sent for aggregation.
+            if len(local_tensors) > 0:
+                shape = local_tensors[0].tensor.shape()
+
+            # Get sum of all private masks.
+            private_mask_sum = 0
+            for seed in rebuilt_secrets[0]:
+                private_mask_sum = np.add(private_mask_sum, pseudo_random_generator(seed[1], shape))
+
+            # Get sum of all shared masks.
+            shared_mask_sum = 0
+            for agreed_key in rebuilt_secrets[1]:
+                collaborator_1 = agreed_key[0]
+                collaborator_2 = agreed_key[1]
+                shared_mask = pseudo_random_generator(agreed_key[2], shape)
+                if collaborator_1 < collaborator_2:
+                    shared_mask = np.dot(-1, shared_mask)
+                elif collaborator_1 == collaborator_2:
+                    shared_mask = np.dot(0, shared_mask)
+                shared_mask_sum = np.add(shared_mask_sum, shared_mask)
+            total_mask_sum = np.sum(private_mask_sum, shared_mask_sum)
+
+            # Get the sum of the masked input vectors.
+            masked_sum = np.sum([tensor.tensor for tensor in local_tensors])
+
+            # Get the sum of the vectors after removing the masks.
+            gradient_sum = np.subtract(masked_sum, total_mask_sum)
+
+            # Return the average.
+            return np.divide(gradient_sum, len(local_tensors))

@@ -311,9 +311,9 @@ class SATaskRunner:
             # ciphertext[4] is the agreed key for the two collaborators.
             shared_mask = pseudo_random_generator(ciphertext[4], shape)
             if index < ciphertext[0]:
-                shared_mask *= -1
+                shared_mask = np.dot(-1, shared_mask)
             elif index == ciphertext[0]:
-                shared_mask = 0
+                shared_mask = np.dot(0, shared_mask)
             # Add masks for all the collaborators.
             gradient = np.add(gradient, shared_mask)
 
