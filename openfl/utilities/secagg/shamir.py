@@ -51,8 +51,7 @@ def create_secret_shares(
     secret = pad(secret, SECRET_CHUNK_LENGTH)
     # Divide the secret into multiple chunks.
     secret_chunks = [
-        secret[i: i + SECRET_CHUNK_LENGTH]
-        for i in range(0, len(secret), SECRET_CHUNK_LENGTH)
+        secret[i : i + SECRET_CHUNK_LENGTH] for i in range(0, len(secret), SECRET_CHUNK_LENGTH)
     ]
     # Create shares for each of the chunk.
     for chunk in secret_chunks:

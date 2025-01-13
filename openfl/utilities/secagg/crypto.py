@@ -52,10 +52,7 @@ def create_ciphertext(
     source_id_bytes = source_id.to_bytes(4, byteorder="big")
     destination_id_bytes = destination_id.to_bytes(4, byteorder="big")
     # Generate the byte string to be encrypted.
-    data = (
-        source_id_bytes + b"." + destination_id_bytes + b"." +
-        seed_share + b"." + key_share
-    )
+    data = source_id_bytes + b"." + destination_id_bytes + b"." + seed_share + b"." + key_share
     # AES cipher requires the secret key to be of a certain length.
     # We use 64 bytes as it is the maximum length available.
     padded_secret_key = pad(secret_key, 64)

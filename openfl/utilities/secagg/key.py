@@ -75,10 +75,6 @@ def generate_agreed_key(
     from Crypto.Protocol.DH import key_agreement
 
     # Using Diffie-Hellman key agreement.
-    key = key_agreement(
-        static_priv=private_key,
-        static_pub=ECC.import_key(public_key),
-        kdf=kdf
-    )
+    key = key_agreement(static_priv=private_key, static_pub=ECC.import_key(public_key), kdf=kdf)
 
     return key

@@ -14,7 +14,7 @@ from openfl.utilities.secagg import (
     decipher_ciphertext,
     generate_agreed_key,
     generate_key_pair,
-    pseudo_random_generator
+    pseudo_random_generator,
 )
 
 
@@ -47,20 +47,18 @@ class SATaskRunner:
         private_key2, public_key2 = generate_key_pair()
 
         local_tensor_dict = {
-            TensorKey(
-                "private_key", col_name, round_number, False,
-                ("private_key")
-            ): [private_key1, private_key2],
-            TensorKey(
-                "private_seed", col_name, round_number, False, ()
-            ): [random.random()]
+            TensorKey("private_key", col_name, round_number, False, ("private_key")): [
+                private_key1,
+                private_key2,
+            ],
+            TensorKey("private_seed", col_name, round_number, False, ()): [random.random()],
         }
 
         global_tensor_dict = {
-            TensorKey(
-                "public_key_local", col_name, round_number, False,
-                ("public_key")
-            ): [public_key1, public_key2]
+            TensorKey("public_key_local", col_name, round_number, False, ("public_key")): [
+                public_key1,
+                public_key2,
+            ]
         }
 
         return local_tensor_dict, global_tensor_dict
@@ -123,7 +121,7 @@ class SATaskRunner:
         seed_shares = create_secret_shares(
             # Converts the floating-point number private_seed into an 8-byte
             # binary representation.
-            struct.pack('d', private_seed),
+            struct.pack("d", private_seed),
             collaborator_count,
             collaborator_count,
         )
@@ -139,52 +137,34 @@ class SATaskRunner:
             collab_public_key_1 = collaborator_tensor[1]
             collab_public_key_2 = collaborator_tensor[2]
             # Generate agreed keys for both the public keys.
-            agreed_key_1 = generate_agreed_key(
-                self._private_keys[0], collab_public_key_1
-            )
-            agreed_key_2 = generate_agreed_key(
-                self._private_keys[1], collab_public_key_2
-            )
+            agreed_key_1 = generate_agreed_key(self._private_keys[0], collab_public_key_1)
+            agreed_key_2 = generate_agreed_key(self._private_keys[1], collab_public_key_2)
             # Generate ciphertext for the collaborator.
             ciphertext, mac, nonce = create_ciphertext(
                 agreed_key_1,
                 index_current,
                 collab_index,
                 seed_shares[collab_index],
-                key_shares[collab_index]
+                key_shares[collab_index],
             )
             # Local cache for collaborator ID x contains a list which contains
             # [x, ciphertext_for_x, mac_for_x, nonce_for_x,
             #   agreed_key_1_with_x, agreed_key_2_with_x].
-            local_output.append(
-                [
-                    collab_index, ciphertext, mac, nonce,
-                    agreed_key_1, agreed_key_2
-                ]
-            )
+            local_output.append([collab_index, ciphertext, mac, nonce, agreed_key_1, agreed_key_2])
             # Result sent to aggregator contains a row for each collaborator
             # such that [source_id, destination_id, ciphertext_source_to_dest].
-            global_output.append(
-                [index_current, collab_index, ciphertext]
-            )
+            global_output.append([index_current, collab_index, ciphertext])
 
         return {
-            TensorKey(
-                "ciphertext", col_name, round_number, False,
-                ("ciphertext")
-            ): global_output
+            TensorKey("ciphertext", col_name, round_number, False, ("ciphertext")): global_output
         }, {
             TensorKey(
-                "ciphertext_local", col_name, round_number, False,
-                ("ciphertext")
+                "ciphertext_local", col_name, round_number, False, ("ciphertext")
             ): local_output,
-            TensorKey(
-                "index", col_name, round_number, False, ()
-            ): [index_current],
+            TensorKey("index", col_name, round_number, False, ()): [index_current],
         }
 
     def decrypt_ciphertexts(
-
         self,
         col_name,
         round_number,
@@ -226,29 +206,25 @@ class SATaskRunner:
         ciphertexts = input_tensor_dict["ciphertext"]
         index_current = input_tensor_dict["index"]
         ciphertext_local = input_tensor_dict["ciphertext_local"]
-        addressed_ciphertexts = self._filter_ciphertexts(
-            ciphertexts, index_current
-        )
+        addressed_ciphertexts = self._filter_ciphertexts(ciphertexts, index_current)
 
         for ciphertext in addressed_ciphertexts:
             source_index = ciphertext[0]
-            cipher_details = self._fetch_collaborator_ciphertext(
-                source_index, ciphertext_local
-            )
+            cipher_details = self._fetch_collaborator_ciphertext(source_index, ciphertext_local)
             _, _, seed_share, key_share = decipher_ciphertext(
                 cipher_details[4],  # agreed_key_1
                 ciphertext[2],  # ciphertext
                 cipher_details[2],  # mac
                 cipher_details[3],  # nonce
             )
-            global_output.append(
-                source_index, index_current, seed_share, key_share
-            )
+            # Result sent to aggregator contains a row for each collaborator
+            # such that [source_id, destination_id, source_seed_dest_share,
+            # source_key_dest_share].
+            global_output.append(source_index, index_current, seed_share, key_share)
 
         return {
             TensorKey(
-                "deciphertext", col_name, round_number, False,
-                ("deciphertext")
+                "deciphertext", col_name, round_number, False, ("deciphertext")
             ): global_output
         }, {}
 
@@ -266,16 +242,19 @@ class SATaskRunner:
             list: A list of filtered ciphertexts that match the specified
                 index.
         """
+        # ciphertexts contains a list of global ciphertext values such that
+        # each row contains
+        # [source_id, destination_id, ciphertext_source_to_dest]
         filtered_ciphertexts = []
         for ciphertext in ciphertexts:
+            # Filter the ciphertexts addressed to the "index_current"
+            # collaborator.
             if ciphertext[1] == index_current:
                 filtered_ciphertexts.append(ciphertext)
 
         return filtered_ciphertexts
 
-    def _fetch_collaborator_ciphertext(
-        self, collaborator_id, ciphertext_local
-    ):
+    def _fetch_collaborator_ciphertext(self, collaborator_id, ciphertext_local):
         """
         Fetches the ciphertext associated with a specific collaborator.
 
@@ -290,7 +269,12 @@ class SATaskRunner:
             The ciphertext associated with the given collaborator ID, or None
                 if no match is found.
         """
+        # ciphertext_local contains a list of ciphertext related values in a
+        # list format. This list is formatted such that for dest collaborator x
+        # [x, ciphertext_for_x, mac_for_x, nonce_for_x,
+        #   agreed_key_1_with_x, agreed_key_2_with_x].
         for ciphertext in ciphertext_local:
+            # Filter the ciphertexts for collaborator_id.
             if ciphertext[0] == collaborator_id:
                 return ciphertext
 
