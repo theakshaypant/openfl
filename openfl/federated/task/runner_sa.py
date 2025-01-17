@@ -7,6 +7,7 @@ import struct
 
 import numpy as np
 
+from openfl.federated.task.runner import TaskRunner
 from openfl.utilities import TensorKey
 from openfl.utilities.secagg import (
     create_ciphertext,
@@ -18,7 +19,45 @@ from openfl.utilities.secagg import (
 )
 
 
-class SATaskRunner:
+class SATaskRunner(TaskRunner):
+    def __init__(self, device: str = None, loss_fn=None, optimizer=None, **kwargs):
+        super().__init__(self, **kwargs)
+        self.required_tensorkeys_for_function = {}
+
+    def initialize_tensorkeys_for_functions(self, with_opt_vars=False):
+        """
+        Initialize the required TensorKeys for various functions.
+
+        This method sets up the required TensorKeys for the functions 
+        "generate_keys", "generate_ciphertexts", and "decrypt_ciphertexts". 
+        The TensorKeys specify the name, scope, version, and other attributes 
+        for the tensors used in these functions.
+
+        Args:
+            with_opt_vars (bool): If True, includes optional variables in the 
+                                  TensorKeys. Defaults to False.
+
+        TensorKeys:
+            - "generate_keys": No TensorKeys required.
+            - "generate_ciphertexts":
+                - public_key: A global tensor key for the public key.
+                - public_key_local: A local tensor key for the public key.
+            - "decrypt_ciphertexts":
+                - ciphertext: A global tensor key for the ciphertext.
+                - ciphertext_local: A local tensor key for the ciphertext.
+                - index: A local tensor key for the index.
+        """
+        self.required_tensorkeys_for_function["generate_keys"] = []
+        self.required_tensorkeys_for_function["generate_ciphertexts"] = [
+            TensorKey("public_key", "GLOBAL", 1, False, ("public_key")),
+            TensorKey("public_key_local", "LOCAL", 1, False, ("public_key")),
+        ]
+        self.required_tensorkeys_for_function["decrypt_ciphertexts"] = [
+            TensorKey("ciphertext", "GLOBAL", 1, False, ("ciphertext")),
+            TensorKey("ciphertext_local", "LOCAL", 1, False, ("ciphertext_local")),
+            TensorKey("index", "LOCAL", 1, False, ())
+        ]
+
     def generate_keys(
         self,
         col_name,
@@ -51,11 +90,15 @@ class SATaskRunner:
                 private_key1,
                 private_key2,
             ],
+            TensorKey("public_key_local", col_name, round_number, False, ("public_key")): [
+                public_key1,
+                public_key2,
+            ],
             TensorKey("private_seed", col_name, round_number, False, ()): [random.random()],
         }
 
         global_tensor_dict = {
-            TensorKey("public_key_local", col_name, round_number, False, ("public_key")): [
+            TensorKey("public_key", col_name, round_number, False, ("public_key")): [
                 public_key1,
                 public_key2,
             ]
@@ -80,7 +123,7 @@ class SATaskRunner:
 
         Required tensors for the task include:
         - GLOBAL public_key
-        - public_key_local
+        - LOCAL public_key_local
 
         Args:
             col_name (str): The column name for the tensor key.
@@ -176,10 +219,10 @@ class SATaskRunner:
 
         Required tensors for the task include:
         - GLOBAL ciphertext.
-        - index
-        - ciphertext_local
+        - LOCAL ciphertext_local
+        - LOCAL index
 
-                Args:
+        Args:
             col_name (str): The name of the column.
             round_number (int): The current round number.
             input_tensor_dict (dict): A dictionary containing the required
