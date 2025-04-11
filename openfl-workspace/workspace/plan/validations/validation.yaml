@@ -1,0 +1,3 @@
+validation:
+  (aggregator, settings, secure_aggregation):
+    config: secure_aggregation.yaml

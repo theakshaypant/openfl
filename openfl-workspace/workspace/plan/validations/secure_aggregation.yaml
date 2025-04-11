@@ -1,0 +1,10 @@
+value: True
+default: False
+allowed:
+  (straggler_handling_policy, template):
+    - openfl.component.WaitForAllPolicy
+    - openfl.component.aggregator.WaitForAllPolicy
+    - openfl.component.aggregator.straggler_handling.WaitForAllPolicy
+forbidden:
+  key1: forbidden1
+  key2.key3: forbidden2
