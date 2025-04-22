@@ -1,10 +1,26 @@
+# Copyright 2020-2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Look at first order logic
+# TODO:
+# 1. Allow dependency on other keys.
+# 2. Raise an exception to fail `fx plan initialize` if the validation fails instead of just
+#   printing the errors.
+# 3. Location of validation.yaml??
+# 4. Look at github workflows syntax for definition of the constraints.
+# 5. Defaults - how to handle. Teo suggestion - remove.
+# 6. Reduce scope to intialization of the plan.
+# 7. Move all defaults to plan/defaults instead of constructor.
+# 8. Conditions can >, <, etc. MAYBE
+
 import ast
 import os
 import typing
-import yaml
 from logging import getLogger
 
-from openfl.interface.cli_helper import WORKSPACE
+import yaml
+
+# from openfl.interface.cli_helper import WORKSPACE
 
 
 logger = getLogger(__name__)
@@ -89,10 +105,7 @@ class FeatureCompatibility:
                 otherwise None.
         """
         # Get feature value in plan.
-        plan_value = FeatureCompatibility.get_key_value(
-            self._feature_key,
-            plan_config
-        )
+        plan_value = FeatureCompatibility.get_key_value(self._feature_key, plan_config)
         if not plan_value:
             plan_value = self._feature_default
         logger.debug(f"Plan value of {self._feature_key} is {plan_value}")
@@ -104,22 +117,15 @@ class FeatureCompatibility:
         # Check if the all the allowed values are set as expected
         for key, value in self._allowed.items():
             # Get the value of the key in the plan.
-            plan_val = FeatureCompatibility.get_key_value(
-                key,
-                plan_config
-            )
+            plan_val = FeatureCompatibility.get_key_value(key, plan_config)
             # Check if the value is same as allowed.
             if (isinstance(value, list) and plan_val not in value) or (plan_val != value):
                 self._add_warning(key, plan_val, value, plan_value)
 
-
         # Check for the forbidden values.
         for key, value in self._forbidden.items():
             # Get the value of the key in the plan.
-            plan_val = FeatureCompatibility.get_key_value(
-                key,
-                plan_config
-            )
+            plan_val = FeatureCompatibility.get_key_value(key, plan_config)
             # Check if the value is not one that is forbidden.
             if (isinstance(value, list) and plan_val in value) or (plan_val == value):
                 self._add_warning(key, plan_val, value, plan_value, allowed_list=False)
@@ -139,9 +145,7 @@ class FeatureCompatibility:
                 represents allowed values (True) or disallowed values (False).
                 Defaults to True.
         """
-        self._warnings.append(
-            (plan_key, plan_value, values_list, set_value, allowed_list)
-        )
+        self._warnings.append((plan_key, plan_value, values_list, set_value, allowed_list))
 
     def _beautify_warning(self):
         """
@@ -159,14 +163,14 @@ class FeatureCompatibility:
                 FeatureCompatibility.flatten_key(warning[0]),
                 warning[1],
                 FeatureCompatibility.flatten_key(self._feature_key),
-                warning[3]
+                warning[3],
             )
             warn += "To set {} = {}, {} must{}be set to {}.\n".format(
                 FeatureCompatibility.flatten_key(self._feature_key),
                 warning[3],
                 FeatureCompatibility.flatten_key(warning[0]),
                 " " if warning[4] else " not ",
-                FeatureCompatibility.flatten_list(warning[2])
+                FeatureCompatibility.flatten_list(warning[2]),
             )
 
         return warn
@@ -236,7 +240,6 @@ class FeatureCompatibility:
             return plan_config
 
 
-
 class PlanValidation:
     """
     Validates a plan configuration against a set of predefined rules.
@@ -245,6 +248,7 @@ class PlanValidation:
     into a list of `FeatureCompatibility` objects, and applying these rules to a given plan
     configuration.
     """
+
     def __init__(self):
         # TODO: Remove this assignment.
         WORKSPACE = "/Users/pantaksh/Code/openfl_fork/openfl-workspace"
@@ -266,9 +270,7 @@ class PlanValidation:
                 feature_dict = PlanValidation.read_yaml(feature_config_file)
 
             feature = FeatureCompatibility(
-                parsed_key,
-                feature_dict["value"],
-                feature_dict["default"]
+                parsed_key, feature_dict["value"], feature_dict["default"]
             )
             # Set the required allowed values for the feature.
             allowed_list = feature_dict.get("allowed", {})
@@ -277,10 +279,7 @@ class PlanValidation:
             # Set the required forbidden values for the feature.
             forbidden_list = feature_dict.get("forbidden")
             for forbidden_key, forbidden_value in forbidden_list.items():
-                feature.set_forbidden(
-                    PlanValidation.smart_parse(forbidden_key),
-                    forbidden_value
-                )
+                feature.set_forbidden(PlanValidation.smart_parse(forbidden_key), forbidden_value)
 
             self.validation_list.append(feature)
 
@@ -305,8 +304,8 @@ class PlanValidation:
         a tuple-like structure, or a plain string.
         - Case 1: Tries to evaluate `literal` as a Python literal using `ast.literal_eval`.
             If successful and the result is a tuple or string, it is returned.
-        - Case 2: If `literal` looks like a tuple without quotes, it is transformed into a properly quoted tuple
-            and evaluated as a Python literal.
+        - Case 2: If `literal` looks like a tuple without quotes, it is transformed into a properly
+            quoted tuple and evaluated as a Python literal.
         - Case 3: If neither of the above cases apply, the input string `literal` is returned as-is.
 
         Args:
@@ -314,8 +313,10 @@ class PlanValidation:
 
         Returns:
             Union[tuple, str]:
-                - If `literal` is a valid Python literal (e.g., a tuple or string), it is returned as-is.
-                - If `literal` resembles a tuple without quotes (e.g., "(a, b, c)"), it is converted into a tuple of strings.
+                - If `literal` is a valid Python literal (e.g., a tuple or string), it is returned
+                    as-is.
+                - If `literal` resembles a tuple without quotes (e.g., "(a, b, c)"), it is converted
+                    into a tuple of strings.
                 - Otherwise, the input string `literal` is returned unchanged.
 
         Example:
@@ -335,17 +336,18 @@ class PlanValidation:
                 return val
             if isinstance(val, str):
                 return val
-        except Exception: # nosec B110
+        except Exception:  # nosec B110
             # Skip bandit Issue: [B110:try_except_pass]
             # This is done as an exception indicates that the literal does not belong to
             # Case 1 and the flow should proceed to the next case.
             pass
 
         # Case 2: If it looks like a tuple without quotes: (a, b, c)
-        if literal.startswith('(') and literal.endswith(')'):
-            items = literal[1:-1].split(',')
+        if literal.startswith("(") and literal.endswith(")"):
+            items = literal[1:-1].split(",")
             quoted_items = [f"'{item.strip()}'" for item in items if item.strip()]
-            fixed = '(' + ', '.join(quoted_items) + ')'
+            fixed = "(" + ", ".join(quoted_items) + ")"
+
             return ast.literal_eval(fixed)
 
         # Case 3: Plain string fallback
@@ -369,16 +371,11 @@ class PlanValidation:
         return yaml_contents
 
 
-
 # TODO: Remove this block.
 if __name__ == "__main__":
     # Dummy plan config.
     plan_config = {
-        "aggregator": {
-            "settings": {
-                "secure_aggregation": True
-            }
-        },
+        "aggregator": {"settings": {"secure_aggregation": True}},
         "key1": "forbidden1",
         "key2": {
             "key3": "forbidden2",
